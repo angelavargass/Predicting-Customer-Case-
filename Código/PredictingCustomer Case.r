@@ -1,6 +1,6 @@
 # ============================================================================
-# PREDICCIÓN DE CUSTOMER CHURN - QWE INC.
-# VERSIÓN FINAL CON GRÁFICOS INTEGRADOS
+# CASO FINAL - PREDICCIÓN DE CUSTOMER CHURN - QWE INC.
+# VERSIÓN SIMPLIFICADA Y OPTIMIZADA
 # ============================================================================
 
 # --- CONFIGURACIÓN INICIAL ---------------------------------------------------
@@ -11,15 +11,21 @@ cat("\n========================================\n")
 cat("INSTALANDO Y CARGANDO PAQUETES...\n")
 cat("========================================\n\n")
 
-# Paquetes (instala si falta)
-pkgs <- c("tidyverse","readr","broom","modelsummary","margins","pROC","caret","janitor","gt")
+# Paquetes necesarios
+pkgs <- c("tidyverse", "readxl", "broom", "modelsummary", "pROC", 
+          "caret", "janitor", "knitr", "patchwork", "stargazer")
 for(p in pkgs) if(!requireNamespace(p, quietly = TRUE)) install.packages(p)
-library(tidyverse); library(readr); library(broom); library(modelsummary)
-library(margins); library(pROC); library(caret); library(janitor); library(gt)
 
-# Crear carpeta de salida
-outdir <- "outputs"
-if(!dir.exists(outdir)) dir.create(outdir)
+library(tidyverse)
+library(readxl)
+library(broom)
+library(modelsummary)
+library(pROC)
+library(caret)
+library(janitor)
+library(knitr)
+library(patchwork)
+library(stargazer)
 
 # Crear carpeta de salida
 dir_salida <- "resultados_churn"
@@ -29,7 +35,7 @@ cat("========================================\n")
 cat("ANÁLISIS DE CUSTOMER CHURN - QWE INC.\n")
 cat("========================================\n\n")
 
-# --- CARGAR DATOS DESDE EXCEL ------------------------------------------------
+# --- CARGAR DATOS ------------------------------------------------------------
 cat("1. Cargando datos desde Excel...\n")
 
 archivo_datos <- "C:/Users/angel/OneDrive - Pontificia Universidad Javeriana/Github- Analitica de los Negocios/Caso Harvard Final - Predicting Costumer/DATA.xlsx"
@@ -48,14 +54,8 @@ cat("   ✓ Datos cargados:", nrow(datos), "observaciones,", ncol(datos), "varia
 cat("2. Preparando datos...\n")
 
 nombre_churn <- names(datos)[grepl("churn", names(datos), ignore.case = TRUE)]
-
-if (length(nombre_churn) == 0) {
-  stop("ERROR: No se encontró la variable 'churn'")
-}
-
-if (nombre_churn[1] != "churn") {
-  datos <- datos %>% rename(churn = !!sym(nombre_churn[1]))
-}
+if (length(nombre_churn) == 0) stop("ERROR: No se encontró la variable 'churn'")
+if (nombre_churn[1] != "churn") datos <- datos %>% rename(churn = !!sym(nombre_churn[1]))
 
 datos <- datos %>%
   mutate(churn = case_when(
@@ -65,12 +65,10 @@ datos <- datos %>%
   )) %>%
   filter(!is.na(churn))
 
-# Distribución
+# Tabla de distribución
 tabla_churn <- data.frame(
   Churn = c("No (0)", "Sí (1)", "TOTAL"),
-  Frecuencia = c(sum(datos$churn == 0), 
-                 sum(datos$churn == 1), 
-                 nrow(datos)),
+  Frecuencia = c(sum(datos$churn == 0), sum(datos$churn == 1), nrow(datos)),
   Porcentaje = c(
     paste0(round(100 * sum(datos$churn == 0) / nrow(datos), 1), "%"),
     paste0(round(100 * sum(datos$churn == 1) / nrow(datos), 1), "%"),
@@ -82,61 +80,46 @@ cat("\n")
 print(kable(tabla_churn, format = "simple", align = c("l", "r", "r")))
 cat("\n")
 
-# GRÁFICO 0: Distribución de Churn
-cat("📊 Generando gráfico de distribución de churn...\n")
+# GRÁFICO 0: Distribución de Churn (ggplot2)
+g0 <- datos %>%
+  count(churn) %>%
+  mutate(
+    churn_label = ifelse(churn == 0, "No (0)", "Sí (1)"),
+    pct = paste0(round(100 * n / sum(n), 1), "%")
+  ) %>%
+  ggplot(aes(x = churn_label, y = n, fill = churn_label)) +
+  geom_col() +
+  geom_text(aes(label = pct), vjust = -0.5, size = 5, fontface = "bold") +
+  scale_fill_manual(values = c("#06D6A0", "#EF476F")) +
+  labs(title = "Gráfico 0: Distribución de la Variable Churn",
+       x = "Churn", y = "Frecuencia") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, face = "bold"))
 
-png(file.path(dir_salida, "grafico_0_distribucion_churn.png"), 
-    width = 800, height = 600)
-barplot(table(datos$churn),
-        main = "Gráfico 0: Distribución de la Variable Churn",
-        xlab = "Churn",
-        ylab = "Frecuencia",
-        col = c("#06D6A0", "#EF476F"),
-        names.arg = c("No (0)", "Sí (1)"))
-text(x = c(0.7, 1.9), 
-     y = table(datos$churn) + max(table(datos$churn)) * 0.05,
-     labels = paste0(round(100 * table(datos$churn) / nrow(datos), 1), "%"),
-     cex = 1.2, font = 2)
-dev.off()
-
-# Mostrar
-barplot(table(datos$churn),
-        main = "Gráfico 0: Distribución de la Variable Churn",
-        xlab = "Churn",
-        ylab = "Frecuencia",
-        col = c("#06D6A0", "#EF476F"),
-        names.arg = c("No (0)", "Sí (1)"))
-text(x = c(0.7, 1.9), 
-     y = table(datos$churn) + max(table(datos$churn)) * 0.05,
-     labels = paste0(round(100 * table(datos$churn) / nrow(datos), 1), "%"),
-     cex = 1.2, font = 2)
-
+ggsave(file.path(dir_salida, "grafico_0_distribucion_churn.png"), g0, width = 8, height = 6)
+print(g0)
 cat("   ✓ Gráfico guardado\n\n")
 
 # --- TABLA DESCRIPTIVA -------------------------------------------------------
 cat("3. Generando tabla descriptiva...\n\n")
 
 columnas_numericas <- sapply(datos, is.numeric)
-nombres_numericos <- names(datos)[columnas_numericas]
-vars_numericas <- nombres_numericos[!nombres_numericos %in% c("churn", "id")]
+vars_numericas <- names(datos)[columnas_numericas]
+vars_numericas <- vars_numericas[!vars_numericas %in% c("churn", "id")]
 
-desc_list <- list()
-
-for (var in vars_numericas) {
-  desc_list[[var]] <- data.frame(
-    Variable = var,
-    N = sum(!is.na(datos[[var]])),
-    Media = round(mean(datos[[var]], na.rm = TRUE), 2),
-    Desv_Std = round(sd(datos[[var]], na.rm = TRUE), 2),
-    Mínimo = round(min(datos[[var]], na.rm = TRUE), 2),
-    Mediana = round(median(datos[[var]], na.rm = TRUE), 2),
-    Máximo = round(max(datos[[var]], na.rm = TRUE), 2),
-    stringsAsFactors = FALSE
+tabla_desc_general <- datos %>%
+  select(all_of(vars_numericas)) %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "value") %>%
+  group_by(Variable) %>%
+  summarise(
+    N = sum(!is.na(value)),
+    Media = round(mean(value, na.rm = TRUE), 2),
+    Desv_Std = round(sd(value, na.rm = TRUE), 2),
+    Mínimo = round(min(value, na.rm = TRUE), 2),
+    Mediana = round(median(value, na.rm = TRUE), 2),
+    Máximo = round(max(value, na.rm = TRUE), 2),
+    .groups = "drop"
   )
-}
-
-tabla_desc_general <- do.call(rbind, desc_list)
-rownames(tabla_desc_general) <- NULL
 
 cat("═══════════════════════════════════════════════════════════════════\n")
 cat("TABLA 1: ESTADÍSTICAS DESCRIPTIVAS\n")
@@ -144,9 +127,7 @@ cat("═════════════════════════
 print(kable(tabla_desc_general, format = "simple", align = "lrrrrrrr"))
 cat("\n")
 
-write_csv(tabla_desc_general, 
-          file.path(dir_salida, "tabla_1_descriptivos_generales.csv"))
-
+write_csv(tabla_desc_general, file.path(dir_salida, "tabla_1_descriptivos_generales.csv"))
 cat("   ✓ Tabla guardada\n\n")
 
 # --- PARTICIÓN TRAIN/TEST ----------------------------------------------------
@@ -170,21 +151,12 @@ cat("\n")
 # --- ESTIMAR MODELOS ---------------------------------------------------------
 cat("5. Estimando modelos de probabilidad...\n")
 
-vars_predictoras <- vars_numericas
-formula_modelo <- as.formula(paste("churn ~", paste(vars_predictoras, collapse = " + ")))
+formula_modelo <- as.formula(paste("churn ~", paste(vars_numericas, collapse = " + ")))
 
-# MODELO LOGIT
-modelo_logit <- glm(formula_modelo, 
-                    data = datos_train, 
-                    family = binomial(link = "logit"))
-
+modelo_logit <- glm(formula_modelo, data = datos_train, family = binomial(link = "logit"))
 cat("   ✓ Modelo Logit estimado\n")
 
-# MODELO PROBIT
-modelo_probit <- glm(formula_modelo, 
-                     data = datos_train, 
-                     family = binomial(link = "probit"))
-
+modelo_probit <- glm(formula_modelo, data = datos_train, family = binomial(link = "probit"))
 cat("   ✓ Modelo Probit estimado\n\n")
 
 # --- TABLA DE REGRESIÓN ------------------------------------------------------
@@ -196,15 +168,10 @@ cat("═════════════════════════
 
 stargazer(modelo_logit, modelo_probit,
           type = "text",
-          title = "",
           dep.var.labels = "Churn (1 = Sí, 0 = No)",
           column.labels = c("Logit", "Probit"),
           digits = 3,
           star.cutoffs = c(0.05, 0.01, 0.001),
-          notes = c("* p<0.05; ** p<0.01; *** p<0.001"))
-
-stargazer(modelo_logit, modelo_probit,
-          type = "text",
           out = file.path(dir_salida, "tabla_2_regresion.txt"))
 
 modelsummary(
@@ -215,73 +182,25 @@ modelsummary(
 
 cat("\n   ✓ Tabla exportada\n\n")
 
-# GRÁFICO 1: Coeficientes del modelo (NUEVO)
+# GRÁFICO 1: Coeficientes del modelo
 cat("📊 Generando gráfico de coeficientes de regresión...\n")
 
-coefs_plot <- tidy(modelo_logit, conf.int = TRUE) %>%
+g1 <- tidy(modelo_logit, conf.int = TRUE) %>%
   filter(term != "(Intercept)") %>%
-  arrange(estimate) %>%
-  mutate(term = factor(term, levels = term))
+  mutate(significativo = ifelse(p.value < 0.05, "Sí", "No")) %>%
+  ggplot(aes(x = estimate, y = reorder(term, estimate), color = significativo)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, linewidth = 1) +
+  scale_color_manual(values = c("No" = "#2E86AB", "Sí" = "#EF476F")) +
+  labs(title = "Gráfico 1: Coeficientes del Modelo Logit\ncon Intervalos de Confianza 95%",
+       x = "Coeficiente (Log-Odds)", y = "", color = "Significativo (p < 0.05)") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "top")
 
-png(file.path(dir_salida, "grafico_1_coeficientes_regresion.png"), 
-    width = 1000, height = 800)
-par(mar = c(5, 10, 4, 2))
-
-# Crear gráfico de puntos con intervalos de confianza
-plot(coefs_plot$estimate, 1:nrow(coefs_plot),
-     xlim = range(c(coefs_plot$conf.low, coefs_plot$conf.high)),
-     yaxt = "n",
-     ylab = "",
-     xlab = "Coeficiente (Log-Odds)",
-     main = "Gráfico 1: Coeficientes del Modelo Logit\ncon Intervalos de Confianza 95%",
-     pch = 19,
-     col = ifelse(coefs_plot$p.value < 0.05, "#EF476F", "#2E86AB"),
-     cex = 1.5)
-
-# Agregar intervalos de confianza
-segments(coefs_plot$conf.low, 1:nrow(coefs_plot),
-         coefs_plot$conf.high, 1:nrow(coefs_plot),
-         col = ifelse(coefs_plot$p.value < 0.05, "#EF476F", "#2E86AB"),
-         lwd = 2)
-
-# Línea de referencia en cero
-abline(v = 0, lty = 2, col = "gray50", lwd = 2)
-
-# Etiquetas del eje Y
-axis(2, at = 1:nrow(coefs_plot), labels = coefs_plot$term, las = 1, cex.axis = 0.9)
-
-# Leyenda
-legend("topright", 
-       legend = c("Significativo (p < 0.05)", "No significativo"),
-       col = c("#EF476F", "#2E86AB"),
-       pch = 19, pt.cex = 1.5)
-
-grid()
-dev.off()
-
-# Mostrar
-par(mar = c(5, 10, 4, 2))
-plot(coefs_plot$estimate, 1:nrow(coefs_plot),
-     xlim = range(c(coefs_plot$conf.low, coefs_plot$conf.high)),
-     yaxt = "n",
-     ylab = "",
-     xlab = "Coeficiente (Log-Odds)",
-     main = "Gráfico 1: Coeficientes del Modelo Logit\ncon Intervalos de Confianza 95%",
-     pch = 19,
-     col = ifelse(coefs_plot$p.value < 0.05, "#EF476F", "#2E86AB"),
-     cex = 1.5)
-segments(coefs_plot$conf.low, 1:nrow(coefs_plot),
-         coefs_plot$conf.high, 1:nrow(coefs_plot),
-         col = ifelse(coefs_plot$p.value < 0.05, "#EF476F", "#2E86AB"),
-         lwd = 2)
-abline(v = 0, lty = 2, col = "gray50", lwd = 2)
-axis(2, at = 1:nrow(coefs_plot), labels = coefs_plot$term, las = 1, cex.axis = 0.9)
-legend("topright", 
-       legend = c("Significativo (p < 0.05)", "No significativo"),
-       col = c("#EF476F", "#2E86AB"),
-       pch = 19, pt.cex = 1.5)
-grid()
-
+ggsave(file.path(dir_salida, "grafico_1_coeficientes_regresion.png"), g1, width = 10, height = 8)
+print(g1)
 cat("   ✓ Gráfico de coeficientes guardado\n\n")
 
 # --- MÉTRICAS DE BONDAD DE AJUSTE --------------------------------------------
@@ -304,8 +223,7 @@ cat("═════════════════════════
 print(kable(metricas_modelo, format = "simple", align = c("l", "r")))
 cat("\n")
 
-write_csv(metricas_modelo, 
-          file.path(dir_salida, "tabla_3_metricas_modelo.csv"))
+write_csv(metricas_modelo, file.path(dir_salida, "tabla_3_metricas_modelo.csv"))
 
 # --- INTERPRETACIÓN DE COEFICIENTES ------------------------------------------
 cat("8. Interpretación de coeficientes...\n\n")
@@ -343,27 +261,43 @@ cat("═════════════════════════
 print(kable(interpretaciones, format = "simple", align = "lrrrrr"))
 cat("\n")
 
-write_csv(interpretaciones, 
-          file.path(dir_salida, "tabla_4_interpretacion_coeficientes.csv"))
+write_csv(interpretaciones, file.path(dir_salida, "tabla_4_interpretacion_coeficientes.csv"))
 write_csv(coefs, file.path(dir_salida, "tabla_5_todos_coeficientes.csv"))
 
 # --- PREDICCIONES EN TEST ----------------------------------------------------
 cat("9. Generando predicciones...\n")
 
-datos_test$prob_churn <- predict(modelo_logit, 
-                                  newdata = datos_test, 
-                                  type = "response")
-
+datos_test$prob_churn <- predict(modelo_logit, newdata = datos_test, type = "response")
 datos_test$pred_churn <- ifelse(datos_test$prob_churn >= 0.5, 1, 0)
 
 cat("   ✓ Predicciones completadas\n\n")
 
+# --- GRÁFICO NUEVO: REGRESIÓN LINEAL (Probabilidad predicha vs Churn) -------
+cat("📊 Generando gráfico de regresión lineal...\n")
+
+# Para visualización de regresión, usamos scatter + smooth
+g_regresion <- datos_test %>%
+  ggplot(aes(x = prob_churn, y = churn)) +
+  geom_jitter(aes(color = factor(churn)), alpha = 0.5, height = 0.05, size = 2) +
+  geom_smooth(method = "lm", se = TRUE, color = "#2E86AB", linewidth = 1.5) +
+  scale_color_manual(values = c("0" = "#06D6A0", "1" = "#EF476F"),
+                     labels = c("No Churn (0)", "Churn (1)")) +
+  labs(title = "Gráfico Nuevo: Regresión Lineal\nProbabilidad Predicha vs Churn Observado",
+       x = "Probabilidad Predicha de Churn",
+       y = "Churn Observado (0 = No, 1 = Sí)",
+       color = "Clase Real") +
+  theme_minimal(base_size = 14) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "top")
+
+ggsave(file.path(dir_salida, "grafico_regresion_lineal.png"), g_regresion, width = 10, height = 6)
+print(g_regresion)
+cat("   ✓ Gráfico de regresión lineal guardado\n\n")
+
 # --- TOP 100 CLIENTES EN RIESGO ---------------------------------------------
 cat("10. Identificando top 100 clientes en riesgo...\n\n")
 
-if (!"id" %in% names(datos_test)) {
-  datos_test$id <- seq_len(nrow(datos_test))
-}
+if (!"id" %in% names(datos_test)) datos_test$id <- seq_len(nrow(datos_test))
 
 datos_test_ordenado <- datos_test %>%
   arrange(desc(prob_churn)) %>%
@@ -376,19 +310,16 @@ vars_adicionales <- vars_adicionales[!is.na(vars_adicionales)]
 columnas_finales <- c(columnas_deseadas, vars_adicionales)
 columnas_finales <- columnas_finales[columnas_finales %in% columnas_disponibles]
 
-top_100_riesgo <- datos_test_ordenado[1:min(100, nrow(datos_test_ordenado)), 
-                                       columnas_finales]
+top_100_riesgo <- datos_test_ordenado[1:min(100, nrow(datos_test_ordenado)), columnas_finales]
 
 cat("═══════════════════════════════════════════════════════════════════\n")
 cat("TABLA 6: TOP 10 CLIENTES CON MAYOR PROBABILIDAD DE CHURN\n")
 cat("═══════════════════════════════════════════════════════════════════\n\n")
 
-print(kable(head(top_100_riesgo, 10), format = "simple", 
-            digits = 4, align = "r"))
+print(kable(head(top_100_riesgo, 10), format = "simple", digits = 4, align = "r"))
 cat("\n(Lista completa guardada en CSV)\n\n")
 
-write_csv(top_100_riesgo, 
-          file.path(dir_salida, "tabla_6_top_100_clientes_riesgo.csv"))
+write_csv(top_100_riesgo, file.path(dir_salida, "tabla_6_top_100_clientes_riesgo.csv"))
 
 # --- MATRIZ DE CONFUSIÓN -----------------------------------------------------
 cat("11. Evaluación del modelo...\n\n")
@@ -418,8 +349,7 @@ cat("═════════════════════════
 print(kable(metricas_eval, format = "simple", align = c("l", "r")))
 cat("\n")
 
-write_csv(metricas_eval, 
-          file.path(dir_salida, "tabla_7_metricas_evaluacion.csv"))
+write_csv(metricas_eval, file.path(dir_salida, "tabla_7_metricas_evaluacion.csv"))
 
 # --- CURVA ROC ---------------------------------------------------------------
 cat("12. Generando curva ROC...\n")
@@ -427,80 +357,64 @@ cat("12. Generando curva ROC...\n")
 roc_obj <- roc(datos_test$churn, datos_test$prob_churn, quiet = TRUE)
 auc_valor <- auc(roc_obj)
 
-png(file.path(dir_salida, "grafico_2_curva_roc.png"), 
-    width = 800, height = 600)
-plot(roc_obj, 
-     main = paste0("Gráfico 2: Curva ROC\nAUC = ", round(auc_valor, 3)),
-     col = "#2E86AB", lwd = 3)
-abline(a = 0, b = 1, lty = 2, col = "gray50", lwd = 2)
-legend("bottomright", 
-       legend = c(paste("AUC =", round(auc_valor, 3)), "Clasificador aleatorio"),
-       col = c("#2E86AB", "gray50"), 
-       lty = c(1, 2), lwd = c(3, 2))
-dev.off()
+# Extraer coordenadas para ggplot
+roc_data <- data.frame(
+  specificities = roc_obj$specificities,
+  sensitivities = roc_obj$sensitivities
+)
 
-plot(roc_obj, 
-     main = paste0("Gráfico 2: Curva ROC\nAUC = ", round(auc_valor, 3)),
-     col = "#2E86AB", lwd = 3)
-abline(a = 0, b = 1, lty = 2, col = "gray50", lwd = 2)
-legend("bottomright", 
-       legend = c(paste("AUC =", round(auc_valor, 3)), "Clasificador aleatorio"),
-       col = c("#2E86AB", "gray50"), 
-       lty = c(1, 2), lwd = c(3, 2))
+g2 <- ggplot(roc_data, aes(x = 1 - specificities, y = sensitivities)) +
+  geom_line(color = "#2E86AB", linewidth = 2) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray50", linewidth = 1) +
+  annotate("text", x = 0.7, y = 0.3, 
+           label = paste("AUC =", round(auc_valor, 3)), 
+           size = 6, fontface = "bold", color = "#2E86AB") +
+  labs(title = paste0("Gráfico 2: Curva ROC\nAUC = ", round(auc_valor, 3)),
+       x = "1 - Especificidad (Tasa de Falsos Positivos)",
+       y = "Sensibilidad (Tasa de Verdaderos Positivos)") +
+  theme_minimal(base_size = 14) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
+ggsave(file.path(dir_salida, "grafico_2_curva_roc.png"), g2, width = 8, height = 6)
+print(g2)
 cat("   ✓ ROC guardada (AUC =", round(auc_valor, 3), ")\n\n")
 
-# --- GRÁFICO DE ERRORES ------------------------------------------------------
-cat("13. Generando gráfico de errores...\n")
+# --- GRÁFICOS DE ERRORES (COMBINADOS CON PATCHWORK) -------------------------
+cat("13. Generando gráficos de errores...\n")
 
 datos_test$error <- datos_test$churn - datos_test$prob_churn
 
-png(file.path(dir_salida, "grafico_3_errores.png"), 
-    width = 1200, height = 600)
-par(mfrow = c(1, 2), mar = c(5, 5, 4, 2))
+g3a <- ggplot(datos_test, aes(x = prob_churn, y = error)) +
+  geom_point(color = rgb(0.2, 0.4, 0.8, 0.4), size = 2) +
+  geom_hline(yintercept = 0, color = "red", linewidth = 1.5, linetype = "dashed") +
+  labs(title = "Gráfico 3A: Errores de Predicción",
+       x = "Probabilidad Predicha",
+       y = "Error (Real - Predicho)") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
-plot(datos_test$prob_churn, datos_test$error,
-     main = "Gráfico 3A: Errores de Predicción",
-     xlab = "Probabilidad Predicha",
-     ylab = "Error (Real - Predicho)",
-     pch = 16, col = rgb(0.2, 0.4, 0.8, 0.4), cex = 1.2)
-abline(h = 0, col = "red", lwd = 3, lty = 2)
-grid(col = "gray90")
+g3b <- ggplot(datos_test, aes(x = error)) +
+  geom_histogram(fill = "#06D6A0", color = "white", bins = 30) +
+  geom_vline(xintercept = 0, color = "red", linewidth = 1.5, linetype = "dashed") +
+  labs(title = "Gráfico 3B: Distribución de Errores",
+       x = "Error",
+       y = "Frecuencia") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
-hist(datos_test$error,
-     main = "Gráfico 3B: Distribución de Errores",
-     xlab = "Error",
-     ylab = "Frecuencia",
-     col = "#06D6A0",
-     border = "white",
-     breaks = 30)
-abline(v = 0, col = "red", lwd = 3, lty = 2)
-dev.off()
+g3 <- g3a + g3b + plot_annotation(
+  title = "Gráfico 3: Análisis de Errores del Modelo",
+  theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5))
+)
 
-par(mfrow = c(1, 2), mar = c(5, 5, 4, 2))
-plot(datos_test$prob_churn, datos_test$error,
-     main = "Gráfico 3A: Errores de Predicción",
-     xlab = "Probabilidad Predicha",
-     ylab = "Error (Real - Predicho)",
-     pch = 16, col = rgb(0.2, 0.4, 0.8, 0.4), cex = 1.2)
-abline(h = 0, col = "red", lwd = 3, lty = 2)
-grid(col = "gray90")
-
-hist(datos_test$error,
-     main = "Gráfico 3B: Distribución de Errores",
-     xlab = "Error",
-     ylab = "Frecuencia",
-     col = "#06D6A0",
-     border = "white",
-     breaks = 30)
-abline(v = 0, col = "red", lwd = 3, lty = 2)
-
+ggsave(file.path(dir_salida, "grafico_3_errores.png"), g3, width = 12, height = 6)
+print(g3)
 cat("   ✓ Gráfico de errores guardado\n\n")
 
 # --- GRÁFICO PREDICHOS VS REALES ---------------------------------------------
 cat("14. Generando gráfico predichos vs reales...\n")
 
-p <- ggplot(datos_test, aes(x = prob_churn, fill = factor(churn))) +
+g4 <- ggplot(datos_test, aes(x = prob_churn, fill = factor(churn))) +
   geom_histogram(position = "identity", alpha = 0.7, bins = 30) +
   scale_fill_manual(
     values = c("0" = "#06D6A0", "1" = "#EF476F"),
@@ -520,11 +434,8 @@ p <- ggplot(datos_test, aes(x = prob_churn, fill = factor(churn))) +
     legend.position = "top"
   )
 
-ggsave(file.path(dir_salida, "grafico_4_predichos_vs_reales.png"), 
-       plot = p, width = 10, height = 6, dpi = 300)
-
-print(p)
-
+ggsave(file.path(dir_salida, "grafico_4_predichos_vs_reales.png"), g4, width = 10, height = 6)
+print(g4)
 cat("   ✓ Gráfico guardado\n\n")
 
 # --- CALIBRACIÓN -------------------------------------------------------------
@@ -549,35 +460,18 @@ cat("\n")
 
 write_csv(calibracion, file.path(dir_salida, "tabla_8_calibracion.csv"))
 
-png(file.path(dir_salida, "grafico_5_calibracion.png"), 
-    width = 800, height = 600)
-plot(calibracion$prob_media, calibracion$tasa_observada,
-     main = "Gráfico 5: Curva de Calibración",
-     xlab = "Probabilidad Predicha (promedio por decil)",
-     ylab = "Tasa de Churn Observada",
-     pch = 19, col = "#2E86AB", cex = 2,
-     xlim = c(0, 1), ylim = c(0, 1))
-abline(0, 1, col = "red", lwd = 3, lty = 2)
-grid(col = "gray90")
-legend("topleft", 
-       legend = c("Predicciones", "Calibración perfecta"),
-       col = c("#2E86AB", "red"), 
-       pch = c(19, NA), lty = c(NA, 2), lwd = c(NA, 3), pt.cex = 2)
-dev.off()
+g5 <- ggplot(calibracion, aes(x = prob_media, y = tasa_observada)) +
+  geom_point(color = "#2E86AB", size = 4) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linewidth = 1.5, linetype = "dashed") +
+  labs(title = "Gráfico 5: Curva de Calibración",
+       x = "Probabilidad Predicha (promedio por decil)",
+       y = "Tasa de Churn Observada") +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal(base_size = 14) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
-plot(calibracion$prob_media, calibracion$tasa_observada,
-     main = "Gráfico 5: Curva de Calibración",
-     xlab = "Probabilidad Predicha (promedio por decil)",
-     ylab = "Tasa de Churn Observada",
-     pch = 19, col = "#2E86AB", cex = 2,
-     xlim = c(0, 1), ylim = c(0, 1))
-abline(0, 1, col = "red", lwd = 3, lty = 2)
-grid(col = "gray90")
-legend("topleft", 
-       legend = c("Predicciones", "Calibración perfecta"),
-       col = c("#2E86AB", "red"), 
-       pch = c(19, NA), lty = c(NA, 2), lwd = c(NA, 3), pt.cex = 2)
-
+ggsave(file.path(dir_salida, "grafico_5_calibracion.png"), g5, width = 8, height = 6)
+print(g5)
 cat("   ✓ Calibración completada\n\n")
 
 # --- GUARDAR MODELOS ---------------------------------------------------------
