@@ -1,7 +1,9 @@
-# ============================================================================
-# CASO FINAL - PREDICCIÓN DE CUSTOMER CHURN - QWE INC.
-# VERSIÓN SIMPLIFICADA Y OPTIMIZADA
-# ============================================================================
+# ============================================================
+# CASO HARVARD FINAL - ANALÍTICA DE LOS NEGOCIOS
+# Análisis de Daily Visits - Web Analytics (Quality Alloys)
+# Autores: Ángela Lucía Vargas, Santiago Muñoz, Josymar Nocua
+# Fecha: 25 de Octubre de 2025
+# ============================================================
 
 # --- CONFIGURACIÓN INICIAL ---------------------------------------------------
 options(stringsAsFactors = FALSE, scipen = 999)
